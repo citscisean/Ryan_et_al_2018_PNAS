@@ -1,0 +1,246 @@
+####Scripts used to process (clean) raw ddRAD sequences
+
+
+####Demultiplex reads
+
+#MiSeq data
+./radtag0_trimmer7.py -e 0 -k -p MiSeq_reverse.fastq MiSeqBarcodes MiSeq_forward.fastq
+
+#HiSeq data
+./radtag0_trimmer7.py -e 0 -k -p HiSeq_Old_reverse.fq HiSeqBarcodesNew HiSeq_Old_forward.fq
+
+
+
+####Remove first 20bp (forward reads - barcodes and cutsites, reverse reads - cutsites)
+
+#MiSeq data
+java -jar trimmomatic-0.32.jar PE -phred33 MiSeq_forward.trimmed.fq MiSeq_reverse.trimmed.fq MiSeq_forward.trimmed_paired.fq.gz MiSeq_forward.trimmed_unpaired.fq.gz MiSeq_reverse.trimmed_paired.fq.gz MiSeq_reverse.trimmed_unpaired.fq.gz ILLUMINACLIP:TruSeq3-PE-3.fa:2:30:10 HEADCROP:20 TRAILING:3 LEADING:3 SLIDINGWINDOW:4:15 MINLEN:30
+
+#HiSeq data
+java -jar trimmomatic-0.32.jar PE -phred64 HiSeq_Old_forward.trimmed.fq HiSeq_Old_reverse.trimmed.fq HiSeq_Old_forward.trimmed_paired.fq.gz HiSeq_Old_forward.trimmed_unpaired.fq.gz HiSeq_Old_reverse.trimmed_paired.fq.gz HiSeq_Old_reverse.trimmed_unpaired.fq.gz ILLUMINACLIP:TruSeq3-PE-3.fa:2:30:10 HEADCROP:20 TRAILING:3 LEADING:3 SLIDINGWINDOW:4:15 MINLEN:30 TOPHRED33
+
+
+
+####Trim all reads to 80bp in length
+
+#MiSeq data
+gzip -d MiSeq_forward.trimmed_unpaired.fq.gz
+./fastx_trimmer -Q33 -f 1 -l 80 -z -v -i MiSeq_forward.trimmed_unpaired.fq -o MiSeq_forward.trimmed_unpaired_fastx80.fq.gz
+gzip MiSeq_forward.trimmed_unpaired.fq
+
+#HiSeq data
+gzip -d HiSeq_Old_forward.trimmed_unpaired.fq.gz
+./fastx_trimmer -Q33 -f 1 -l 60 -z -v -i HiSeq_Old_forward.trimmed_unpaired.fq -o HiSeq_Old_forward.trimmed_unpaired_fastx60.fq.gz
+gzip HiSeq_Old_forward.trimmed_unpaired.fq
+
+
+
+####Index the reference genome
+./bwa index pgl_assembly_v1.fasta
+
+####Align the cleaned reads to the reference genome (using BWA sampe)
+#MiSeq data
+gzip -d MiSeq_forward.trimmed_paired.fq.gz
+gzip -d MiSeq_reverse.trimmed_paired.fq.gz
+./bwa aln -t 4 -q 5 -l 32 -k 2 -o 1 pgl_assembly_v1.fasta MiSeq_forward.trimmed_paired.fq > MiSeq_forward.trimmed_paired.sai
+./bwa aln -t 4 -q 5 -l 32 -k 2 -o 1 pgl_assembly_v1.fasta MiSeq_reverse.trimmed_paired.fq > MiSeq_reverse.trimmed_paired.sai
+./bwa sampe pgl_assembly_v1.fasta MiSeq_forward.trimmed_paired.sai MiSeq_reverse.trimmed_paired.sai MiSeq_forward.trimmed_paired.fq MiSeq_reverse.trimmed_paired.fq > MiSeq_PE_sampe_pgl.sam
+gzip MiSeq_forward.trimmed_paired.fq
+gzip MiSeq_reverse.trimmed_paired.fq
+
+gzip -d MiSeq_forward.trimmed_unpaired_fastx80.fq.gz
+./bwa aln -t 4 -q 5 -l 32 -k 2 -o 1 pgl_assembly_v1.fasta MiSeq_forward.trimmed_unpaired_fastx80.fq > MiSeq_forward.trimmed_unpaired_fastx80.sai
+./bwa samse pgl_assembly_v1.fasta MiSeq_forward.trimmed_unpaired_fastx80.sai MiSeq_forward.trimmed_unpaired_fastx80.fq > MiSeq_SE_samse_pgl.sam
+gzip MiSeq_forward.trimmed_unpaired_fastx80.fq
+
+
+#HiSeq - sampe
+gzip -d HiSeq_Old_forward.trimmed_paired.fq.gz
+gzip -d HiSeq_Old_reverse.trimmed_paired.fq.gz
+./bwa aln -t 4 -q 5 -l 32 -k 2 -o 1 pgl_assembly_v1.fasta HiSeq_Old_forward.trimmed_paired.fq > HiSeq_Old_forward.trimmed_paired.sai
+./bwa aln -t 4 -q 5 -l 32 -k 2 -o 1 pgl_assembly_v1.fasta HiSeq_Old_reverse.trimmed_paired.fq > HiSeq_Old_reverse.trimmed_paired.sai
+./bwa sampe pgl_assembly_v1.fasta HiSeq_Old_forward.trimmed_paired.sai HiSeq_Old_reverse.trimmed_paired.sai HiSeq_Old_forward.trimmed_paired.fq HiSeq_Old_reverse.trimmed_paired.fq > HiSeq_Old_PE_sampe_pgl_clean.sam
+gzip HiSeq_Old_forward.trimmed_paired.fq
+gzip HiSeq_Old_reverse.trimmed_paired.fq
+
+gzip -d HiSeq_Old_forward.trimmed_unpaired_fastx60.fq.gz
+./bwa aln -t 4 -q 5 -l 32 -k 2 -o 1 pgl_assembly_v1.fasta HiSeq_Old_forward.trimmed_unpaired_fastx60.fq > HiSeq_Old_forward.trimmed_unpaired_fastx60.sai
+./bwa samse pgl_assembly_v1.fasta HiSeq_Old_forward.trimmed_unpaired_fastx60.sai HiSeq_Old_forward.trimmed_unpaired_fastx60.fq > HiSeq_Old_SE_samse_pgl.sam
+gzip HiSeq_Old_forward.trimmed_unpaired_fastx60.fq
+
+
+####Clean the alignment (soft clips any reads that extend beyond the edge of an assembly) (Picard tools)
+
+#MiSeq data
+module load java/1.7
+java -Xmx4g -jar CleanSam.jar \
+INPUT=MiSeq_PE_sampe_pgl.sam \
+OUTPUT=MiSeq_PE_sampe_pgl_clean.sam \
+VALIDATION_STRINGENCY=LENIENT
+
+module load java/1.7
+java -Xmx4g -jar CleanSam.jar \
+INPUT=MiSeq_SE_samse_pgl.sam \
+OUTPUT=MiSeq_SE_samse_pgl_clean.sam \
+VALIDATION_STRINGENCY=LENIENT
+
+#HiSeq data
+module load java/1.7
+java -Xmx4g -jar CleanSam.jar \
+INPUT=HiSeq_Old_PE_sampe_pgl.sam \
+OUTPUT=HiSeq_Old_PE_sampe_pgl_clean.sam \
+VALIDATION_STRINGENCY=LENIENT
+
+module load java/1.7
+java -Xmx4g -jar CleanSam.jar \
+INPUT=HiSeq_Old_SE_samse_pgl.sam \
+OUTPUT=HiSeq_Old_SE_samse_pgl_clean.sam \
+VALIDATION_STRINGENCY=LENIENT
+
+
+####Add read groups to the sam (alignment) file
+#MiSeq data
+perl AddSamplesToBam.MiSeq_sampe_PE.pl
+perl AddSamplesToBam.MiSeq_samse_SE.pl
+
+
+#HiSeq data
+perl AddSamplesToBam.HiSeq_Old_sampe_PE.pl
+perl AddSamplesToBam.HiSeq_Old_samse_SE.pl
+
+
+
+####Index reference genome
+samtools faidx pgl_assembly_v1.fsa
+
+
+
+####Make a .dict file (made a copy of reference that ended with .fasta extension so that picard would recognize it as a valid file)
+java -Xmx2g -jar ./picard-tools-1.114/CreateSequenceDictionary.jar REFERENCE=pgl_assembly_v1.fsa
+
+
+
+####Convert Sam to Bam format
+./samtools view -bS MiSeq_PE_sampe_pgl_clean_rg.sam -o MiSeq_PE_sampe_pgl_clean_rg.bam
+./samtools view -bS MiSeq_SE_samse_pgl_clean_rg.sam -o MiSeq_SE_samse_pgl_clean_rg.bam
+
+####Sort Bam file
+./samtools sort MiSeq_PE_sampe_pgl_clean_rg.bam  MiSeq_PE_sampe_pgl_clean_rg_sort
+./samtools sort MiSeq_SE_samse_pgl_clean_rg.bam  MiSeq_SE_samse_pgl_clean_rg_sort
+
+####Index the sorted Bam file
+./samtools index MiSeq_PE_sampe_pgl_clean_rg_sort.bam
+./samtools index MiSeq_SE_samse_pgl_clean_rg_sort.bam
+
+
+####Convert Sam to Bam format
+./samtools view -bS HiSeq_Old_PE_sampe_pgl_clean_rg.sam -o MiSeq_New_PE_sampe_pgl_clean_rg.bam
+./samtools view -bS HiSeq_Old_SE_samse_pgl_clean_rg.sam -o MiSeq_New_SE_samse_pgl_clean_rg.bam
+
+####Sort Bam file
+./samtools sort HiSeq_Old_PE_sampe_pgl_clean_rg.bam  MiSeq_New_PE_sampe_pgl_clean_rg_sort
+./samtools sort HiSeq_Old_SE_samse_pgl_clean_rg.bam  MiSeq_New_SE_samse_pgl_clean_rg_sort
+
+####Index the sorted Bam file
+./samtools index HiSeq_Old_PE_sampe_pgl_clean_rg_sort.bam
+./samtools index HiSeq_Old_SE_samse_pgl_clean_rg_sort.bam
+
+
+
+####GATK-realign reads
+
+#MiSeq data
+
+module load java/1.7
+java -Xmx4g -jar GenomeAnalysisTK.jar \
+-T RealignerTargetCreator \
+-R pgl_assembly_v1.fasta  \
+-I MiSeq_PE_sampe_pgl_clean_rg_sort.bam \
+-o MiSeq_PE_sampe_pgl_clean_rg_sort.bam.intervals
+
+module load java/1.7
+java -Xmx4g -jar GenomeAnalysisTK.jar \
+-T RealignerTargetCreator \
+-R pgl_assembly_v1.fasta  \
+-I MiSeq_SE_samse_pgl_clean_rg_sort.bam \
+-o MiSeq_SE_samse_pgl_clean_rg_sort.bam.intervals
+
+java -Xmx4G -jar GenomeAnalysisTK.jar \
+-T IndelRealigner \
+-R pgl_assembly_v1.fasta \
+-I MiSeq_PE_sampe_pgl_clean_rg_sort.bam \
+-targetIntervals MiSeq_PE_sampe_pgl_clean_rg_sort.bam.intervals \
+-o MiSeq_PE_sampe_pgl_clean_rg_sort_realigned.bam
+
+java -Xmx4G -jar GenomeAnalysisTK.jar \
+-T IndelRealigner \
+-R pgl_assembly_v1.fasta \
+-I MiSeq_PE_sampe_pgl_clean_rg_sort.bam \
+-targetIntervals MiSeq_PE_sampe_pgl_clean_rg_sort.bam.intervals \
+-o MiSeq_PE_sampe_pgl_clean_rg_sort_realigned.bam
+
+
+#HiSeq data
+java -Xmx4g -jar GenomeAnalysisTK.jar \
+-T RealignerTargetCreator \
+-R pgl_assembly_v1.fasta  \
+-I HiSeq_Old_PE_sampe_pgl_clean_rg_sort.bam \
+-o HiSeq_Old_PE_sampe_pgl_clean_rg_sort.bam.intervals
+
+java -Xmx4g -jar GenomeAnalysisTK.jar \
+-T RealignerTargetCreator \
+-R pgl_assembly_v1.fasta  \
+-I HiSeq_Old_SE_samse_pgl_clean_rg_sort.bam \
+-o HiSeq_Old_SE_samse_pgl_clean_rg_sort.bam.intervals
+java -Xmx4G -jar GenomeAnalysisTK.jar \
+-T IndelRealigner \
+
+-R pgl_assembly_v1.fasta \
+-I HiSeq_Old_PE_sampe_pgl_clean_rg_sort.bam \
+-targetIntervals HiSeq_Old_PE_sampe_pgl_clean_rg_sort.bam.intervals \
+-o HiSeq_Old_PE_sampe_pgl_clean_rg_sort_realigned.bam
+
+java -Xmx4G -jar GenomeAnalysisTK.jar \
+-T IndelRealigner \
+-R pgl_assembly_v1.fasta \
+-I HiSeq_Old_SE_samse_pgl_clean_rg_sort.bam \
+-targetIntervals HiSeq_Old_SE_samse_pgl_clean_rg_sort.bam.intervals \
+-o HiSeq_Old_SE_samse_pgl_clean_rg_sort_realigned.bam
+
+
+
+####Use Hc-Builder create multiple parallel jobs files for GATK
+./hc_builder.py
+-b MiSeq_PE_sampe_pgl_clean_rg_sort_realigned.bam
+-b MiSeq_SE_samse_pgl_clean_rg_sort_realigned.bam
+-b HiSeq_Old_PE_sampe_pgl_clean_rg_sort_realigned.bam
+-b HiSeq_Old_SE_samse_pgl_clean_rg_sort_realigned.bam
+-e <email address>
+-m 12
+-j HC_Launcher_MiSeq_HiSeqNew_sampe_samse
+-v MiSeq_HiSeq_Old_variants
+-r pgl_assembly_v1.fasta
+-g GenomeAnalysisTK.jar
+-t 100
+
+
+####Run GATK's HaplotypeCaller
+java -Xmx12g -jar ./GATK-3.3/GenomeAnalysisTK.jar \
+-T HaplotypeCaller \
+-R pgl_assembly_v1.fasta \
+-rf BadCigar \
+-nct 8 \
+-I HiSeq_Old_SE_samse_pgl_clean_rg_sort_realigned.bam \
+-I HiSeq_Old_PE_sampe_pgl_clean_rg_sort_realigned.bam \
+-I MiSeq_SE_samse_pgl_clean_rg_sort_realigned.bam \
+-I MiSeq_PE_sampe_pgl_clean_rg_sort_realigned.bam \
+-o MiSeq_HiSeq_Old_variants.$SGE_TASK_ID.vcf $HC_TASKS[$SGE_TASK_ID]
+
+
+
+
+
+
+
+
+

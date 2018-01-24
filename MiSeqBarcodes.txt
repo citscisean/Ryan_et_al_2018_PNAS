@@ -1,0 +1,7 @@
+gtcattac        PAP481OLD
+actaatctca      PAP3560OLD
+caacttac        PAP4824OLD
+aactcagca       PAP1164OLD
+attcgcgtca      PAP698OLD
+gatcaacc        PAP236OLD
+cgtaacgca       PAP0000

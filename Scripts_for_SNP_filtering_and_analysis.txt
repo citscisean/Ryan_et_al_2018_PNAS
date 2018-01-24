@@ -1,0 +1,527 @@
+
+
+### Apply min/max allele freq filter
+vcftools_0.1.12b/vcftools --gzvcf GATK-3.4/AllNewSamples_biallelic.vcf.gz \
+--maf 0.05 \
+--max-maf 0.95 \
+--recode \
+--recode-INFO-all \
+--out GATK-3.4/AllNewSamples_biallelic_min5max95
+
+vcftools_0.1.12b/vcftools --vcf GATK-3.4/AllOldSamples_biallelic_nonone.recode.vcf \
+--maf 0.05 \
+--max-maf 0.95 \
+--recode \
+--recode-INFO-all \
+--out GATK-3.4/AllOldSamples_biallelic_min5max95
+
+
+
+### Remove individuals with excessive missingness
+vcftools_0.1.12b/vcftools --gzvcf GATK-3.4/AllNewSamples_biallelic_min5max95.recode.vcf.gz \
+--keep samples_New_lessthan90prcntmiss \
+--recode \
+--recode-INFO-all \
+--out GATK-3.4/AllNewSamples_biallelic_min5max95_lessthan90prcntmis
+
+vcftools_0.1.12b/vcftools --vcf GATK-3.4/AllOldSamples_biallelic_min5max95.recode.vcf \
+--keep samples_Old_lessthan95prcntmiss \
+--recode \
+--recode-INFO-all \
+--out GATK-3.4/AllOldSamples_biallelic_min5max95_lessthan95prcntmis
+
+
+###Remove females
+vcftools_0.1.12b/vcftools --gzvcf GATK-3.4/AllOldSamples_biallelic_min5max95_lessthan95prcntmis.recode.vcf.gz \
+--remove females.txt \
+--recode \
+--recode-INFO-all \
+--out GATK-3.4/AllOldSamples_biallelic_min5max95_lessthan95prcntmis_nofemales
+
+
+### Apply "Hard" filter to the dataset
+htslib/bgzip GATK-3.4/AllOldSamples_biallelic_min5max95_lessthan95prcntmis_nofemales.recode.vcf
+tabix-0.2.6/tabix GATK-3.4/AllOldSamples_biallelic_min5max95_lessthan95prcntmis_nofemales.recode.vcf.gz
+
+###Flag sites for "hard" filters
+java -Xmx12G -jar GATK-3.4/GenomeAnalysisTK.jar \
+-T VariantFiltration \
+-R pgl_assembly_v1.fasta \
+-V GATK-3.4/AllOldSamples_biallelic_min5max95_lessthan95prcntmis_nofemales.recode.vcf.gz \
+--filterExpression "QD < 2.0" \
+--filterName "QD" \
+--filterExpression "FS > 60.0" \
+--filterName "FS" \
+--filterExpression "MQ < 40.0" \
+--filterName "MQ" \
+--filterExpression "MQRankSum < -12.5" \
+--filterName "MQRankSum" \
+--filterExpression "ReadPosRankSum < -8.0" \
+--filterName "ReadPosRankSum" \
+-o AllOldSamples_biallelic_min5max95_lessthan95prcntmis_nofemales_hardfilter.vcf
+
+### Apply the fitler - remove SNPs that fail (now have a flag)
+awk '/^#/||$7=="PASS"' AllOldSamples_biallelic_min5max95_lessthan95prcntmis_nofemales_hardfilter.vcf > AllOldSamples_biallelic_min5max95_lessthan95prcntmis_nofemales_hardfiltered.vcf
+
+### Remove genotype calls with a GQ < 20
+vcftools_0.1.12b/vcftools --vcf AllOldSamples_biallelic_min5max95_lessthan95prcntmis_nofemales_hardfiltered.vcf \
+--minGQ 20 \
+--recode \
+--recode-INFO-all \
+--out AllOldSamples_biallelic_min5max95_lessthan95prcntmis_nofemales_hardfiltered_GQ20
+
+
+
+### Apply a "Hard" filter to the dataset
+htslib/bgzip GATK-3.4/AllNewSamples_biallelic_min5max95_lessthan90prcntmis.recode.vcf
+tabix-0.2.6/tabix GATK-3.4/AllNewSamples_biallelic_min5max95_lessthan90prcntmis.recode.vcf.gz
+
+### Flag sites for "hard" filters
+java -Xmx12G -jar GATK-3.4/GenomeAnalysisTK.jar \
+-T VariantFiltration \
+-R pgl_assembly_v1.fasta \
+-V GATK-3.4/AllNewSamples_biallelic_min5max95_lessthan90prcntmis.recode.vcf.gz \
+--filterExpression "QD < 2.0" \
+--filterName "QD" \
+--filterExpression "FS > 60.0" \
+--filterName "FS" \
+--filterExpression "MQ < 40.0" \
+--filterName "MQ" \
+--filterExpression "MQRankSum < -12.5" \
+--filterName "MQRankSum" \
+--filterExpression "ReadPosRankSum < -8.0" \
+--filterName "ReadPosRankSum" \
+-o AllNewSamples_biallelic_min5max95_lessthan90prcntmis_hardfilter.vcf
+
+### Apply the fitler - remove SNPs that fail (now have a flag)
+awk '/^#/||$7=="PASS"' AllNewSamples_biallelic_min5max95_lessthan90prcntmis_hardfilter.vcf > AllNewSamples_biallelic_min5max95_lessthan90prcntmis_hardfiltered.vcf
+
+
+### Remove genotype calls with a GQ < 20
+vcftools_0.1.12b/vcftools --vcf AllNewSamples_biallelic_min5max95_lessthan90prcntmis_hardfiltered.vcf \
+--minGQ 20 \
+--recode \
+--recode-INFO-all \
+--out AllNewSamples_biallelic_min5max95_lessthan90prcntmis_hardfiltered_GQ20
+
+
+
+### Need to gzip and index files for GATK
+Tabix/tabix-0.2.6/bgzip AllNewSamples_biallelic_min5max95_lessthan90prcntmis_hardfiltered_GQ20.recode.vcf
+Tabix/tabix-0.2.6/tabix AllNewSamples_biallelic_min5max95_lessthan90prcntmis_hardfiltered_GQ20.recode.vcf.gz
+
+Tabix/tabix-0.2.6/bgzip AllOldSamples_biallelic_min5max95_lessthan95prcntmis_nofemales_hardfiltered_GQ20.recode.vcf
+Tabix/tabix-0.2.6/tabix AllOldSamples_biallelic_min5max95_lessthan95prcntmis_nofemales_hardfiltered_GQ20.recode.vcf.gz
+
+### Filter 'individual by coverage'
+module load java/1.7
+java -Xmx12G -jar GATK-3.4/GenomeAnalysisTK.jar \
+-T CoveredByNSamplesSites \
+-R Pg_genome/annotation_official/glaucus_assembly_V1.1.fa \
+--variant AllNewSamples_biallelic_min5max95_lessthan90prcntmis_hardfiltered_GQ20.recode.vcf.gz \
+--percentageOfSamples .75 \
+-minCov 6 \
+-out FINAL_SNPs_New_75ind_6X_hardGQ20.intervals \
+-nt 6
+
+module load java/1.7
+java -Xmx12G -jar GATK-3.4/GenomeAnalysisTK.jar \
+-T CoveredByNSamplesSites \
+-R Pg_genome/annotation_official/glaucus_assembly_V1.1.fa \
+--variant AllOldSamples_biallelic_min5max95_lessthan95prcntmis_nofemales_hardfiltered_GQ20.recode.vcf.gz \
+--percentageOfSamples .75 \
+-minCov 6 \
+-out FINAL_SNPs_Old_75ind_6X_hardGQ20.intervals \
+-nt 6
+
+
+
+
+### Combine the two intervals files
+cat FINAL_SNPs_New_75ind_6X_hardGQ20.intervals FINAL_SNPs_Old_75ind_6X_hardGQ20.intervals > SNPs_OldandNew_75ind_6X_hardGQ20.intervals
+cat SNPs_OldandNew_75ind_6X_hardGQ20.intervals | sort | uniq -d > FINAL_SNPS_OldandNew_6X_hardGQ20
+
+### Make interval file tab deliminited
+awk -F":" '$1=$1' OFS="\t" FINAL_SNPS_OldandNew_6X_hardGQ20 > FINAL_SNPS_OldandNew_6X_hardGQ20.txt
+
+
+### Select only positions (loci) found in both datasets
+vcftools_0.1.12b/vcftools --gzvcf AllNewSamples_biallelic_min5max95_lessthan90prcntmis_hardfiltered_GQ20.recode.vcf.gz \
+--positions FINAL_SNPS_OldandNew_6X_hardGQ20.txt \
+--recode \
+--recode-INFO-all \
+--out FINAL_SNPs_New_75ind_6X_hardGQ20
+
+vcftools_0.1.12b/vcftools --gzvcf AllOldSamples_biallelic_min5max95_lessthan95prcntmis_nofemales_hardfiltered_GQ20.recode.vcf.gz \
+--positions FINAL_SNPS_OldandNew_6X_hardGQ20.txt \
+--recode \
+--recode-INFO-all \
+--out FINAL_SNPs_Old_75ind_6X_hardGQ20
+
+
+### Select sites that are no closer than 1kb (list created in excel)
+vcftools_0.1.12b/vcftools --vcf FINAL_SNPs_New_75ind_6X_hardGQ20.recode.vcf \
+--positions FINAL_SNPs_75ind_6X_hardGQ20_READY_FOR_ANALYSES_1kb.txt \
+--recode \
+--recode-INFO-all \
+--out FINAL_SNPs_New_75ind_6X_hardGQ20_READY_FOR_ANALYSES_1kb
+
+vcftools_0.1.12b/vcftools --vcf FINAL_SNPs_Old_75ind_6X_hardGQ20.recode.vcf \
+--positions FINAL_SNPs_75ind_6X_hardGQ20_READY_FOR_ANALYSES_1kb.txt \
+--recode \
+--recode-INFO-all \
+--out FINAL_SNPs_Old_75ind_6X_hardGQ20_READY_FOR_ANALYSES_1kb
+
+
+
+
+
+
+
+#####For Hzar (clinal analysis)
+
+### Identify sites that show clinal variation (calculate allele frequencies in parental populations to do this)
+vcftools_0.1.12b/vcftools --vcf FINAL_SNPs_Old_75ind_6X_hardGQ20_READY_FOR_ANALYSES_1kb.recode.vcf \
+--keep POP_1_OLD_FINAL \
+--freq \
+--out FINAL_SNPs_Old_75ind_6X_hardGQ20_READY_FOR_ANALYSES_POP_1
+
+### Calculate allele frequencies
+vcftools_0.1.12b/vcftools --vcf FINAL_SNPs_Old_75ind_6X_hardGQ20_READY_FOR_ANALYSES_1kb.recode.vcf \
+--keep POP_8_OLD_FINAL \
+--freq \
+--out FINAL_SNPs_Old_75ind_6X_hardGQ20_READY_FOR_ANALYSES_POP_8
+
+### Calculate allele frequencies
+vcftools_0.1.12b/vcftools --vcf FINAL_SNPs_New_75ind_6X_hardGQ20_READY_FOR_ANALYSES_1kb.recode.vcf \
+--keep POP_1_NEW_FINAL \
+--freq \
+--out FINAL_SNPs_New_75ind_6X_hardGQ20_READY_FOR_ANALYSES_POP_1
+
+### Calculate allele frequencies
+vcftools_0.1.12b/vcftools --vcf FINAL_SNPs_New_75ind_6X_hardGQ20_READY_FOR_ANALYSES_1kb.recode.vcf \
+--keep POP_8_NEW_FINAL \
+--freq \
+--out FINAL_SNPs_New_75ind_6X_hardGQ20_READY_FOR_ANALYSES_POP_8
+
+
+
+### Prepare data for R
+cat FINAL_SNPs_New_75ind_6X_hardGQ20_READY_FOR_ANALYSES_POP_1.frq | cut -f 5,6 | tail -n +2 | awk '{ gsub(":", " ") } 1' | cut -f 2 | awk '{print $2}' | tr "\n" "\t" > AF_POP_1_New_hard_OLDvsNEW
+cat FINAL_SNPs_New_75ind_6X_hardGQ20_READY_FOR_ANALYSES_POP_8.frq | cut -f 5,6 | tail -n +2 | awk '{ gsub(":", " ") } 1' | cut -f 2 | awk '{print $2}' | tr "\n" "\t" > AF_POP_8_New_hard_OLDvsNEW
+cat FINAL_SNPs_Old_75ind_6X_hardGQ20_READY_FOR_ANALYSES_POP_1.frq | cut -f 5,6 | tail -n +2 | awk '{ gsub(":", " ") } 1' | cut -f 2 | awk '{print $2}' | tr "\n" "\t" > AF_POP_1_Old_hard_OLDvsNEW
+cat FINAL_SNPs_Old_75ind_6X_hardGQ20_READY_FOR_ANALYSES_POP_8.frq | cut -f 5,6 | tail -n +2 | awk '{ gsub(":", " ") } 1' | cut -f 2 | awk '{print $2}' | tr "\n" "\t" > AF_POP_8_Old_hard_OLDvsNEW
+awk '{print > "AF_POP_1_8_New_hard_OLDvsNEW"}' AF_POP_1_New_hard_OLDvsNEW AF_POP_8_New_hard_OLDvsNEW
+awk '{print > "AF_POP_1_8_Old_hard_OLDvsNEW"}' AF_POP_1_Old_hard_OLDvsNEW AF_POP_8_Old_hard_OLDvsNEW
+
+### Create vector of loci IDs
+cat FINAL_SNPs_New_75ind_6X_hardGQ20_READY_FOR_ANALYSES_POP_1.frq | cut -f 1,2 | tail -n +2 | tr "\t" "." | tr "\n" "\t" > AF_Loci_IDs_hard
+
+
+### Select sites that are CLINAL and at least 1kb apart
+vcftools_0.1.12b/vcftools --vcf FINAL_SNPs_New_75ind_6X_hardGQ20_READY_FOR_ANALYSES_1kb.recode.vcf \
+--positions SNPs_FINAL_OLDvsNEW_6X_hard_Clinal_1kb \
+--recode \
+--recode-INFO-all \
+--out FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb
+
+vcftools_0.1.12b/vcftools --vcf FINAL_SNPs_Old_75ind_6X_hardGQ20_READY_FOR_ANALYSES_1kb.recode.vcf \
+--positions SNPs_FINAL_OLDvsNEW_6X_hard_Clinal_1kb \
+--recode \
+--recode-INFO-all \
+--out FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb
+
+
+
+
+
+### Now calculate allele frequencies for just clinal loci that are 1kn apart
+
+### Calculate allele frequencies
+vcftools_0.1.12b/vcftools --vcf FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb.recode.vcf \
+--keep POP_1_NEW_FINAL \
+--freq \
+--out FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_1
+
+### Calculate allele frequencies
+vcftools_0.1.12b/vcftools --vcf FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb.recode.vcf \
+--keep POP_2_NEW_FINAL \
+--freq \
+--out FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_2
+
+### Calculate allele frequencies
+vcftools_0.1.12b/vcftools --vcf FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb.recode.vcf \
+--keep POP_3_NEW_FINAL \
+--freq \
+--out FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_3
+
+### Calculate allele frequencies
+vcftools_0.1.12b/vcftools --vcf FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb.recode.vcf \
+--keep POP_4_NEW_FINAL \
+--freq \
+--out FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_4
+
+### Calculate allele frequencies
+vcftools_0.1.12b/vcftools --vcf FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb.recode.vcf \
+--keep POP_5_NEW_FINAL \
+--freq \
+--out FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_5
+
+### Calculate allele frequencies
+vcftools_0.1.12b/vcftools --vcf FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb.recode.vcf \
+--keep POP_6_NEW_FINAL \
+--freq \
+--out FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_6
+
+### Calculate allele frequencies
+vcftools_0.1.12b/vcftools --vcf FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb.recode.vcf \
+--keep POP_7_NEW_FINAL \
+--freq \
+--out FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_7
+
+### Calculate allele frequencies
+vcftools_0.1.12b/vcftools --vcf FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb.recode.vcf \
+--keep POP_8_NEW_FINAL \
+--freq \
+--out FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_8
+
+
+
+### Calculate allele frequencies
+vcftools_0.1.12b/vcftools --vcf FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb.recode.vcf \
+--keep POP_1_OLD_FINAL \
+--freq \
+--out FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_1
+
+### Calculate allele frequencies
+vcftools_0.1.12b/vcftools --vcf FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb.recode.vcf \
+--keep POP_2_OLD_FINAL \
+--freq \
+--out FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_2
+
+### Calculate allele frequencies
+vcftools_0.1.12b/vcftools --vcf FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb.recode.vcf \
+--keep POP_3_OLD_FINAL \
+--freq \
+--out FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_3
+
+### Calculate allele frequencies
+vcftools_0.1.12b/vcftools --vcf FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb.recode.vcf \
+--keep POP_4_OLD_FINAL \
+--freq \
+--out FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_4
+
+### Calculate allele frequencies
+vcftools_0.1.12b/vcftools --vcf FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb.recode.vcf \
+--keep POP_5_OLD_FINAL \
+--freq \
+--out FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_5
+
+### Calculate allele frequencies
+vcftools_0.1.12b/vcftools --vcf FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb.recode.vcf \
+--keep POP_6_OLD_FINAL \
+--freq \
+--out FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_6
+
+### Calculate allele frequencies
+vcftools_0.1.12b/vcftools --vcf FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb.recode.vcf \
+--keep POP_7_OLD_FINAL \
+--freq \
+--out FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_7
+
+### Calculate allele frequencies
+vcftools_0.1.12b/vcftools --vcf FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb.recode.vcf \
+--keep POP_8_OLD_FINAL \
+--freq \
+--out FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_8
+
+
+
+### Print just alleles freq, remove header, split columns by semi colon, print just one of the allele frequencies (second column), transpose allele frequencies
+
+cat FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_1.frq | cut -f 5,6 | tail -n +2 | awk '{ gsub(":", " ") } 1' | cut -f 2 | awk '{print $2}' | tr "\n" "\t" > AF_POP_1_New_hard_OLDvsNEW
+cat FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_2.frq | cut -f 5,6 | tail -n +2 | awk '{ gsub(":", " ") } 1' | cut -f 2 | awk '{print $2}' | tr "\n" "\t" > AF_POP_2_New_hard_OLDvsNEW
+cat FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_3.frq | cut -f 5,6 | tail -n +2 | awk '{ gsub(":", " ") } 1' | cut -f 2 | awk '{print $2}' | tr "\n" "\t" > AF_POP_3_New_hard_OLDvsNEW
+cat FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_4.frq | cut -f 5,6 | tail -n +2 | awk '{ gsub(":", " ") } 1' | cut -f 2 | awk '{print $2}' | tr "\n" "\t" > AF_POP_4_New_hard_OLDvsNEW
+cat FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_5.frq | cut -f 5,6 | tail -n +2 | awk '{ gsub(":", " ") } 1' | cut -f 2 | awk '{print $2}' | tr "\n" "\t" > AF_POP_5_New_hard_OLDvsNEW
+cat FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_6.frq | cut -f 5,6 | tail -n +2 | awk '{ gsub(":", " ") } 1' | cut -f 2 | awk '{print $2}' | tr "\n" "\t" > AF_POP_6_New_hard_OLDvsNEW
+cat FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_7.frq | cut -f 5,6 | tail -n +2 | awk '{ gsub(":", " ") } 1' | cut -f 2 | awk '{print $2}' | tr "\n" "\t" > AF_POP_7_New_hard_OLDvsNEW
+cat FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_8.frq | cut -f 5,6 | tail -n +2 | awk '{ gsub(":", " ") } 1' | cut -f 2 | awk '{print $2}' | tr "\n" "\t" > AF_POP_8_New_hard_OLDvsNEW
+
+cat FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_1.frq | cut -f 5,6 | tail -n +2 | awk '{ gsub(":", " ") } 1' | cut -f 2 | awk '{print $2}' | tr "\n" "\t" > AF_POP_1_Old_hard_OLDvsNEW
+cat FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_2.frq | cut -f 5,6 | tail -n +2 | awk '{ gsub(":", " ") } 1' | cut -f 2 | awk '{print $2}' | tr "\n" "\t" > AF_POP_2_Old_hard_OLDvsNEW
+cat FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_3.frq | cut -f 5,6 | tail -n +2 | awk '{ gsub(":", " ") } 1' | cut -f 2 | awk '{print $2}' | tr "\n" "\t" > AF_POP_3_Old_hard_OLDvsNEW
+cat FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_4.frq | cut -f 5,6 | tail -n +2 | awk '{ gsub(":", " ") } 1' | cut -f 2 | awk '{print $2}' | tr "\n" "\t" > AF_POP_4_Old_hard_OLDvsNEW
+cat FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_5.frq | cut -f 5,6 | tail -n +2 | awk '{ gsub(":", " ") } 1' | cut -f 2 | awk '{print $2}' | tr "\n" "\t" > AF_POP_5_Old_hard_OLDvsNEW
+cat FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_6.frq | cut -f 5,6 | tail -n +2 | awk '{ gsub(":", " ") } 1' | cut -f 2 | awk '{print $2}' | tr "\n" "\t" > AF_POP_6_Old_hard_OLDvsNEW
+cat FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_7.frq | cut -f 5,6 | tail -n +2 | awk '{ gsub(":", " ") } 1' | cut -f 2 | awk '{print $2}' | tr "\n" "\t" > AF_POP_7_Old_hard_OLDvsNEW
+cat FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_8.frq | cut -f 5,6 | tail -n +2 | awk '{ gsub(":", " ") } 1' | cut -f 2 | awk '{print $2}' | tr "\n" "\t" > AF_POP_8_Old_hard_OLDvsNEW
+
+### Now, need to append them all together
+awk '{print > "AF_All_POPs_New_hard_OLDvsNEW"}' AF_POP_1_New_hard_OLDvsNEW AF_POP_2_New_hard_OLDvsNEW AF_POP_3_New_hard_OLDvsNEW AF_POP_4_New_hard_OLDvsNEW AF_POP_5_New_hard_OLDvsNEW AF_POP_6_New_hard_OLDvsNEW AF_POP_7_New_hard_OLDvsNEW AF_POP_8_New_hard_OLDvsNEW
+awk '{print > "AF_All_POPs_Old_hard_OLDvsNEW"}' AF_POP_1_Old_hard_OLDvsNEW AF_POP_2_Old_hard_OLDvsNEW AF_POP_3_Old_hard_OLDvsNEW AF_POP_4_Old_hard_OLDvsNEW AF_POP_5_Old_hard_OLDvsNEW AF_POP_6_Old_hard_OLDvsNEW AF_POP_7_Old_hard_OLDvsNEW AF_POP_8_Old_hard_OLDvsNEW
+
+
+
+### Create vector of loci IDs (same loci used for all)
+cat FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_1.frq | cut -f 1,2 | tail -n +2 | tr "\t" "." | tr "\n" "\t" > AF_All_POPs_Loci_IDs_hard
+
+
+### Need to take number of individuals used to calc allele freq from above file as well (Hzar needs this info)
+
+cat FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_1.frq | cut -f 4 | tail -n +2 | tr "\n" "\t" > AF_POP_1_New_hard_OLDvsNEW_n
+cat FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_2.frq | cut -f 4 | tail -n +2 | tr "\n" "\t" > AF_POP_2_New_hard_OLDvsNEW_n
+cat FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_3.frq | cut -f 4 | tail -n +2 | tr "\n" "\t" > AF_POP_3_New_hard_OLDvsNEW_n
+cat FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_4.frq | cut -f 4 | tail -n +2 | tr "\n" "\t" > AF_POP_4_New_hard_OLDvsNEW_n
+cat FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_5.frq | cut -f 4 | tail -n +2 | tr "\n" "\t" > AF_POP_5_New_hard_OLDvsNEW_n
+cat FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_6.frq | cut -f 4 | tail -n +2 | tr "\n" "\t" > AF_POP_6_New_hard_OLDvsNEW_n
+cat FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_7.frq | cut -f 4 | tail -n +2 | tr "\n" "\t" > AF_POP_7_New_hard_OLDvsNEW_n
+cat FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_8.frq | cut -f 4 | tail -n +2 | tr "\n" "\t" > AF_POP_8_New_hard_OLDvsNEW_n
+
+cat FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_1.frq | cut -f 4 | tail -n +2 | tr "\n" "\t" > AF_POP_1_Old_hard_OLDvsNEW_n
+cat FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_2.frq | cut -f 4 | tail -n +2 | tr "\n" "\t" > AF_POP_2_Old_hard_OLDvsNEW_n
+cat FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_3.frq | cut -f 4 | tail -n +2 | tr "\n" "\t" > AF_POP_3_Old_hard_OLDvsNEW_n
+cat FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_4.frq | cut -f 4 | tail -n +2 | tr "\n" "\t" > AF_POP_4_Old_hard_OLDvsNEW_n
+cat FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_5.frq | cut -f 4 | tail -n +2 | tr "\n" "\t" > AF_POP_5_Old_hard_OLDvsNEW_n
+cat FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_6.frq | cut -f 4 | tail -n +2 | tr "\n" "\t" > AF_POP_6_Old_hard_OLDvsNEW_n
+cat FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_7.frq | cut -f 4 | tail -n +2 | tr "\n" "\t" > AF_POP_7_Old_hard_OLDvsNEW_n
+cat FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_8.frq | cut -f 4 | tail -n +2 | tr "\n" "\t" > AF_POP_8_Old_hard_OLDvsNEW_n
+
+
+
+### Now, need to append them all together
+awk '{print > "All_POPs_New_hard_OLDvsNEW_N"}' AF_POP_1_New_hard_OLDvsNEW_n AF_POP_2_New_hard_OLDvsNEW_n AF_POP_3_New_hard_OLDvsNEW_n AF_POP_4_New_hard_OLDvsNEW_n AF_POP_5_New_hard_OLDvsNEW_n AF_POP_6_New_hard_OLDvsNEW_n AF_POP_7_New_hard_OLDvsNEW_n AF_POP_8_New_hard_OLDvsNEW_n
+awk '{print > "All_POPs_Old_hard_OLDvsNEW_N"}' AF_POP_1_Old_hard_OLDvsNEW_n AF_POP_2_Old_hard_OLDvsNEW_n AF_POP_3_Old_hard_OLDvsNEW_n AF_POP_4_Old_hard_OLDvsNEW_n AF_POP_5_Old_hard_OLDvsNEW_n AF_POP_6_Old_hard_OLDvsNEW_n AF_POP_7_Old_hard_OLDvsNEW_n AF_POP_8_Old_hard_OLDvsNEW_n
+
+
+
+
+
+
+
+### Calculate HWE (only use population 1 and 8 to filter out loci)
+vcftools_0.1.12b/vcftools --vcf FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb.recode.vcf \
+--keep POP_1_NEW_FINAL \
+--hardy \
+--out FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_1
+
+vcftools_0.1.12b/vcftools --vcf FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb.recode.vcf \
+--keep POP_8_NEW_FINAL \
+--hardy \
+--out FINAL_SNPs_New_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_8
+
+
+vcftools_0.1.12b/vcftools --vcf FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb.recode.vcf \
+--keep POP_1_OLD_FINAL \
+--hardy \
+--out FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_1
+
+vcftools_0.1.12b/vcftools --vcf FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb.recode.vcf \
+--keep POP_8_OLD_FINAL \
+--hardy \
+--out FINAL_SNPs_Old_75ind_6X_hard_READY_FOR_ANALYSES_CLINAL_1kb_POP_8
+
+
+
+### Remove loci not in HWE and create files for running in Hzar (done in Excel)
+
+
+### Scripts for processing Hzar output - need to do in command line, not as a job
+
+### Remove spaces from file names  (need to be in BASH shell)
+find . -name '* *' | while read file; do target=`echo "$file" | sed 's/ /_/g'`; echo "Renaming '$file' to '$target'"; mv "$file" "$target"; done;
+
+### Make these directories in the "Results_OldvsNew_hard/New" and "Results_OldvsNew_hard/Old"
+mkdir MaxLL_var_params_for_selected_model
+mkdir MaxLL_selected_model
+mkdir MaxLL_params_for_selected_model
+mkdir Selected_Models
+mkdir Rawdata_Plots
+mkdir Tracemodels
+mkdir CheckFit_related_files
+mkdir Check_model_convergence
+mkdir Fuzzyclines_for_selectedmodels
+mkdir Comparing16models
+mkdir AICtables
+
+### Move files into appropriate folders
+mv scaffold_* Rscripts/Hzar/Results_OldvsNew_hard/New/
+mv OLD_scaffold_* Rscripts/Hzar/Results_OldvsNew_hard/Old/
+
+
+### Move files with the same extension into a different directory
+mv *AICc_table_for_all_models.txt AICtables/
+mv *tracemodel* Tracemodels/
+mv *rawdata.png Rawdata_Plots/
+mv *comparing16models.png Comparing16models/
+mv *fuzzycline_selectedmodel.png Fuzzyclines_for_selectedmodels/
+mv *__selected_model.txt Selected_Models/
+mv *_maxLL_selectedmodel.png MaxLL_selected_model/
+mv *_MaxLL_var_params_for_selected_model.txt MaxLL_var_params_for_selected_model/
+mv *_MaxLL_params_for_selected_model.txt MaxLL_params_for_selected_model/
+mv *_check* CheckFit_related_files/
+mv *_Check* CheckFit_related_files/
+
+### Merge all files (tables) in a single folder adding the file name to the first column in each row
+
+### In AIC folder directory
+grep "" *.txt > AICtable_for_6X_hard_SNPs
+
+### In Selected_Models directory
+grep "" *.txt > Selected_6X_hard_model
+
+### In MaxLL_var_params_for_selected_model directory
+grep "" *.txt > MaxLL_var_params_6X_hard_selected_models
+
+### In MaxLL_params_for_selected_model directory
+grep "" *.txt > MaxLL_params_6X_hard_selected_models
+
+
+### MERGE VCFs to use for STRUCTURE
+### Need to bgzip and tabix for merging
+tabix-0.2.6/bgzip FINAL_SNPs_New_75ind_6X_hardGQ20_READY_FOR_ANALYSES_1kb.recode.vcf
+tabix-0.2.6/tabix FINAL_SNPs_New_75ind_6X_hardGQ20_READY_FOR_ANALYSES_1kb.recode.vcf.gz
+
+tabix-0.2.6/bgzip FINAL_SNPs_Old_75ind_6X_hardGQ20_READY_FOR_ANALYSES_1kb.recode.vcf
+tabix-0.2.6/tabix FINAL_SNPs_Old_75ind_6X_hardGQ20_READY_FOR_ANALYSES_1kb.recode.vcf.gz
+
+
+### Merge vcfs with GATK --- DID NOT USE THE GATK USED VCFTOOL INSTEAD
+module load java/1.7
+java -Xmx12G -jar GATK-3.4/GenomeAnalysisTK.jar \
+-T CombineVariants \
+-R Pg_genome/annotation_official/glaucus_assembly_V1.1.fa \
+--variant FINAL_SNPs_New_75ind_6X_hardGQ20_READY_FOR_ANALYSES_1kb.recode.vcf.gz \
+--variant FINAL_SNPs_Old_75ind_6X_hardGQ20_READY_FOR_ANALYSES_1kb.recode.vcf.gz \
+-o FINAL_SNPS_Old_and_NEW_75ind_6X_hard_READY_FOR_ANALYSES_1kb.vcf \
+-nt 6
+
+### Merge with vcftools_0.1.12b/vcftools
+vcf-merge FINAL_SNPs_New_75ind_6X_hardGQ20_READY_FOR_ANALYSES_1kb.recode.vcf.gz FINAL_SNPs_Old_75ind_6X_hardGQ20_READY_FOR_ANALYSES_1kb.recode.vcf.gz > FINAL_SNPS_Old_and_NEW_75ind_6X_hard_READY_FOR_ANALYSES_1kb.vcf
+
+
+### CONVERT VCF TO STRUCTURE FORMAT
+module load java/1.7
+java -Xmx1024m -Xms512m -jar PGDspider/PGDSpider2-cli.jar \
+-inputfile FINAL_SNPS_Old_and_NEW_75ind_6X_hard_READY_FOR_ANALYSES_1kb.vcf.gz \
+-inputformat VCF \
+-outputfile FINAL_SNPS_Old_and_NEW_75ind_6X_hard_READY_FOR_ANALYSES_1kb.stru \
+-outputformat STRUCTURE \
+-spid VCFtoSTRU.spid
+
+
+
+
+### Run Qualimap
+qualimap_v2.1/qualimap bamqc -bam GATK-3.4/bam_files/MiSeq_PE_sampe_pgl_V1_clean_rg_sort_realigned.bam -outdir qualimap_results -outfile MiSeq_PE_sampe_pgl_V1_clean_rg_sort_realigned.bam.pdf -nt 8 --java-mem-size=32G
+qualimap_v2.1/qualimap bamqc -bam GATK-3.4/bam_files/HiSeq_New_PE_sampe_pgl_V1_clean_rg_sort_realigned.bam -outdir qualimap_results -outfile HiSeq_New_PE_sampe_pgl_V1_clean_rg_sort_realigned.bam.pdf -nt 8 --java-mem-size=32G
+qualimap_v2.1/qualimap bamqc -bam GATK-3.4/bam_files/HiSeq_New_SE_F_samse_pgl_V1_clean_rg_sort_realigned.bam -outdir qualimap_results -outfile HiSeq_New_SE_F_samse_pgl_V1_clean_rg_sort_realigned.bam.pdf -nt 8 --java-mem-size=32G
+qualimap_v2.1/qualimap bamqc -bam GATK-3.4/bam_files/HiSeq_New_SE_R_samse_pgl_V1_clean_rg_sort_realigned.bam -outdir qualimap_results -outfile HiSeq_New_SE_R_samse_pgl_V1_clean_rg_sort_realigned.bam.pdf -nt 8 --java-mem-size=32G
+qualimap_v2.1/qualimap bamqc -bam GATK-3.4/bam_files/HiSeq_Old_PE_sampe_pgl_V1_clean_rg_sort_realigned.bam -outdir qualimap_results -outfile HiSeq_Old_PE_sampe_pgl_V1_clean_rg_sort_realigned.bam.pdf -nt 8 --java-mem-size=32G
+qualimap_v2.1/qualimap bamqc -bam GATK-3.4/bam_files/HiSeq_OLd_SE_F_samse_pgl_V1_clean_rg_sort_realigned.bam -outdir qualimap_results -outfile HiSeq_Old_SE_F_samse_pgl_V1_clean_rg_sort_realigned.bam.pdf -nt 8 --java-mem-size=32G
+qualimap_v2.1/qualimap bamqc -bam GATK-3.4/bam_files/HiSeq_Old_SE_R_samse_pgl_V1_clean_rg_sort_realigned.bam -outdir qualimap_results -outfile HiSeq_Old_SE_R_samse_pgl_V1_clean_rg_sort_realigned.bam.pdf -nt 8 --java-mem-size=32G
+
+
+
+
+
